@@ -117,18 +117,14 @@ function buildCircle(container) {
 const renderParams = {
     radius : 50,
     rate : 1,
-    perspective: 0.5
+    perspective: 0.5,
+    blur : 5,
+    colourFade : 80,
+    fade: 10,
+    edgeBrightness : 2
 };
 
 function buildRenderer(container) {
-    const MIN_SATURATION = 20,
-        MAX_SATURATION = 100,
-        MIN_LIGHTNESS = 50,
-        MAX_LIGHTNESS = 60,
-        MIN_BLUR = -20,
-        MAX_BLUR = 0,
-        BORDER_LIGHTNESS_FACTOR = 2;
-
     return {
         render(light) {
             const containerElementWidth = container.element.getBoundingClientRect().width,
@@ -148,19 +144,19 @@ function buildRenderer(container) {
             circle.radius = renderParams.radius;
             circle.x = xOffset + xFactor * containerElementWidth * light.position.x / container.width;
             circle.y = yOffset + yFactor * containerElementHeight * (1-light.position.z / container.height);
-            circle.zIndex = 10 + (container.depth - light.position.y);
+            circle.zIndex = Math.round(10 + (container.depth - light.position.y));
 
             circle.borderColor = {
                 h : light.hue,
-                s : MIN_SATURATION + (MAX_SATURATION - MIN_SATURATION) * (1 - distanceFactor),
-                l : MIN_LIGHTNESS + (MAX_LIGHTNESS - MIN_LIGHTNESS) * (distanceFactor)
+                s : 100 - renderParams.colourFade * distanceFactor,
+                l : 50 - renderParams.fade * distanceFactor / renderParams.edgeBrightness
             };
             circle.backgroundColor = {
                 h : light.hue,
-                s : MIN_SATURATION + (MAX_SATURATION - MIN_SATURATION) * (1 - distanceFactor),
-                l : MIN_LIGHTNESS + (MAX_LIGHTNESS - MIN_LIGHTNESS) * (distanceFactor) * BORDER_LIGHTNESS_FACTOR
+                s : 100 - renderParams.colourFade * distanceFactor,
+                l : 50 - renderParams.fade * distanceFactor
             };
-            circle.blur = MIN_BLUR + (MAX_BLUR - MIN_BLUR) * (1 - distanceFactor);
+            circle.blur = renderParams.blur * distanceFactor;
             circle.hidden = light.hidden;
 
             if (light.finished) {
@@ -268,6 +264,10 @@ function setupControls(params) {
     setupControl('radius');
     setupControl('rate');
     setupControl('perspective');
+    setupControl('blur');
+    setupControl('colourFade');
+    setupControl('fade');
+    setupControl('edgeBrightness');
 }
 
 function setupLightTimer() {
@@ -275,26 +275,26 @@ function setupLightTimer() {
         const
             hue = Math.round(pickRandomRange(0, 360)),
             position = {
-                x: pickRandomRange(0, 100),
-                y: pickRandomRange(0, 100),
+                x: 0,
+                y: 100,
                 z: 100
             },
             speed = {
                 x: 0,
-                y: 0,
+                y: -3,
                 z: 0
             },
             acceleration = {
                 x: 0,
                 y: 0,
-                z: -20
+                z: 0
             };
 
         function flicker(x, y, z, t) {
             return y < 20 && Math.floor(x / 4) % 4 === 1;
         }
 
-        env.addLight(hue, position, speed, acceleration, flicker);
+        env.addLight(50, position, speed, acceleration, flicker);
         setTimeout(newLight, 1000 / renderParams.rate);
     };
     newLight();
