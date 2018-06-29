@@ -8,8 +8,6 @@ const colourHues = {
     orange: 30
 };
 
-const RADIUS = 50;
-
 function pickRandom(...items) {
     return items[Math.floor(Math.random() * items.length)]
 }
@@ -116,17 +114,20 @@ function buildCircle(container) {
     };
 }
 
+const renderParams = {
+    radius : 50,
+    rate : 1,
+    perspective: 0.5
+};
+
 function buildRenderer(container) {
     const MIN_SATURATION = 20,
         MAX_SATURATION = 100,
         MIN_LIGHTNESS = 50,
         MAX_LIGHTNESS = 60,
-        PERSPECTIVE = 1, // 0 = no perspective, 1 = container.depth at infinity
         MIN_BLUR = -20,
         MAX_BLUR = 0,
         BORDER_LIGHTNESS_FACTOR = 2;
-
-    //min + f * (max - min)
 
     return {
         render(light) {
@@ -134,9 +135,9 @@ function buildRenderer(container) {
                 containerElementHeight = container.element.getBoundingClientRect().height,
                 distance = light.position.y,
                 circle = light.circle,
-                minW = containerElementWidth * (1 - PERSPECTIVE),
+                minW = containerElementWidth * (1 - renderParams.perspective),
                 maxW = containerElementWidth,
-                minH = containerElementHeight * (1 - PERSPECTIVE),
+                minH = containerElementHeight * (1 - renderParams.perspective),
                 maxH = containerElementHeight,
                 distanceFactor = 1 - (container.depth - distance) / container.depth,  // 0 - close, 1 - far
                 xOffset = (maxW - minW) * distanceFactor / 2,
@@ -144,6 +145,7 @@ function buildRenderer(container) {
                 yOffset = (maxH - minH) * distanceFactor / 2,
                 yFactor = (maxH - yOffset * 2) / maxH;
 
+            circle.radius = renderParams.radius;
             circle.x = xOffset + xFactor * containerElementWidth * light.position.x / container.width;
             circle.y = yOffset + yFactor * containerElementHeight * (1-light.position.z / container.height);
             circle.zIndex = 10 + (container.depth - light.position.y);
@@ -164,6 +166,7 @@ function buildRenderer(container) {
             if (light.finished) {
                 circle.alphaFactor *= 0.98;
             }
+
         }
     };
 }
@@ -196,7 +199,6 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
         light.hidden = light.flicker(light.position.x, light.position.y, light.position.z, now);
 
         light.lastUpdate = Date.now();
-        //console.log(JSON.stringify(light));
     }
 
     function render() {
@@ -230,7 +232,6 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
 
         addLight(hue, position, speed, acceleration, flicker) {
             const circle = buildCircle(container);
-            circle.radius = 50;
             circle.borderWidth = 2;
 
             const light = {
@@ -244,43 +245,70 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
 
         width,
         height,
-        depth
+        depth,
+        radius
     };
 }
 
-const env = buildEnvironment(document.querySelector('#container'));
+const bokehEl = document.querySelector('#bokeh');
+const env = buildEnvironment(bokehEl);
 env.start();
 
-setInterval(() => {
-    const
-        hue = Math.round(pickRandomRange(0,360)),
-        position = {
-            x : pickRandomRange(0,100),
-            y : pickRandomRange(0,100),
-            z : 100
-        },
-        speed = {
-            x : 0,
-            y : 0,
-            z : 0
-        },
-        acceleration = {
-            x : 0,
-            y : 0,
-            z : -20
-        };
+function setupControls(params) {
+    function setupControl(name) {
+        const slider = document.querySelector(`#${name}`),
+            display = document.querySelector(`#${name}Value`);
 
-        function flicker(x,y,z,t) {
-            return y<20 && Math.floor(x/4) % 4 === 1;
+        slider.value = display.innerHTML = renderParams[name];
+        slider.addEventListener('input', () => {
+            renderParams[name] = Number(display.innerHTML = slider.value);
+        });
+    }
+
+    setupControl('radius');
+    setupControl('rate');
+    setupControl('perspective');
+}
+
+function setupLightTimer() {
+    function newLight() {
+        const
+            hue = Math.round(pickRandomRange(0, 360)),
+            position = {
+                x: pickRandomRange(0, 100),
+                y: pickRandomRange(0, 100),
+                z: 100
+            },
+            speed = {
+                x: 0,
+                y: 0,
+                z: 0
+            },
+            acceleration = {
+                x: 0,
+                y: 0,
+                z: -20
+            };
+
+        function flicker(x, y, z, t) {
+            return y < 20 && Math.floor(x / 4) % 4 === 1;
         }
 
-    env.addLight(hue, position, speed, acceleration, flicker);
-
-}, 1000);
-
-const goFullScreen = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen;
-if (goFullScreen) {
-    const fullScreenIcon = document.querySelector('.fullScreenIcon');
-    fullScreenIcon.style.display = 'inline';
-    fullScreenIcon.onclick = goFullScreen.bind(container);
+        env.addLight(hue, position, speed, acceleration, flicker);
+        setTimeout(newLight, 1000 / renderParams.rate);
+    };
+    newLight();
 }
+
+function setupFullScreen() {
+    const goFullScreen = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen;
+    if (goFullScreen) {
+        const fullScreenIcon = document.querySelector('.fullScreenIcon');
+        fullScreenIcon.style.display = 'inline';
+        fullScreenIcon.onclick = goFullScreen.bind(bokehEl);
+    }
+}
+
+setupControls(renderParams);
+setupFullScreen();
+setupLightTimer();
