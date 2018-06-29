@@ -24,7 +24,7 @@ function buildCircle(container) {
     container.appendChild(div);
 
     const borderColorAlpha = 1, backgroundColorAlpha = 0.7;
-    let x, y, hidden, zIndex, radius, borderWidth, borderColor, backgroundColor, blur, alphaFactor = 1;
+    let x, y, hidden, zIndex, radius, borderWidth, borderColor, backgroundColor, blur, alpha;
 
     return {
         get x() {
@@ -32,7 +32,6 @@ function buildCircle(container) {
         },
         set x(value) {
             x = value;
-            div.style.left = `${x-radius}px`;
         },
 
         get y() {
@@ -40,7 +39,6 @@ function buildCircle(container) {
         },
         set y(value) {
             y = value;
-            div.style.top = `${y-radius}px`;
         },
 
         get zIndex() {
@@ -48,7 +46,6 @@ function buildCircle(container) {
         },
         set zIndex(value) {
             zIndex = value;
-            div.style.zIndex = `${zIndex}`;
         },
 
         get hidden() {
@@ -56,7 +53,6 @@ function buildCircle(container) {
         },
         set hidden(value) {
             hidden = value;
-            div.style.display = hidden ? 'none' : 'block';
         },
 
         get radius() {
@@ -64,9 +60,6 @@ function buildCircle(container) {
         },
         set radius(value) {
             radius = value;
-            div.style.borderRadius = `${radius}px`;
-            div.style.height=`${radius*2}px`;
-            div.style.width=`${radius*2}px`;
         },
 
         get borderWidth() {
@@ -74,14 +67,6 @@ function buildCircle(container) {
         },
         set borderWidth(value) {
             borderWidth = value;
-            div.style.borderWidth = `${borderWidth}px`;
-        },
-
-        get alphaFactor() {
-            return alphaFactor;
-        },
-        set alphaFactor(value) {
-            alphaFactor = value;
         },
 
         get borderColor() {
@@ -89,7 +74,6 @@ function buildCircle(container) {
         },
         set borderColor(value) {
             borderColor = value;
-            div.style.borderColor = `hsla(${borderColor.h},${borderColor.s}%,${borderColor.l}%, ${borderColorAlpha * alphaFactor})`
         },
 
         get backgroundColor() {
@@ -97,7 +81,6 @@ function buildCircle(container) {
         },
         set backgroundColor(value) {
             backgroundColor = value;
-            div.style.backgroundColor = `hsla(${backgroundColor.h},${backgroundColor.s}%,${backgroundColor.l}%, ${backgroundColorAlpha * alphaFactor})`
         },
 
         get blur() {
@@ -105,66 +88,119 @@ function buildCircle(container) {
         },
         set blur(value) {
             blur = value;
-            div.style.filter=`blur(${Math.abs(blur)}px)`;
+        },
+
+        get alpha() {
+            return alpha;
+        },
+        set alpha(value) {
+            alpha = value;
+        },
+
+        applyStyles() {
+            Object.assign(div.style, {
+                left : `${x-radius}px`,
+                top : `${y-radius}px`,
+                zIndex : `${zIndex}`,
+                display : hidden ? 'none' : 'block',
+                borderRadius : `${radius+borderWidth}px`,
+                height : `${radius*2}px`,
+                width : `${radius*2}px`,
+                borderWidth : `${borderWidth}px`,
+                borderColor : `hsla(${borderColor.h},${borderColor.s}%,${borderColor.l}%, ${borderColorAlpha * alpha})`,
+                backgroundColor : `hsla(${backgroundColor.h},${backgroundColor.s}%,${backgroundColor.l}%, ${backgroundColorAlpha * alpha})`,
+                filter : `blur(${Math.abs(blur)}px)`,
+            });
         },
 
         remove() {
             container.removeChild(div);
+            console.log('===== finished')
         }
     };
 }
 
 const renderParams = {
     radius : 50,
-    rate : 1,
+    rate : 0.3,
     perspective: 0.5,
     blur : 5,
     colourFade : 80,
     fade: 10,
-    edgeBrightness : 2
+    edgeBrightness : 2,
+    focalDistance : 50,
+    vanishingPoint : 100
 };
 
 function buildRenderer(container) {
-    return {
+    function transformCoords(pos3d) {
+        /*
+            +y ^
+               |  -z
+               | /
+               |/
+      -x <-----0------> +x
+              /|
+             / |
+           +z  |
+               -y
+     */
+
+        return {
+            x: pos3d.x/(-pos3d.z * renderParams.perspective),
+            y:pos3d.y/(-pos3d.z * renderParams.perspective)
+        }
+    }
+
+    let containerElementWidth, containerElementHeight;
+
+    const renderer = {
+        checkContainerSize() {
+            containerElementWidth = container.element.getBoundingClientRect().width;
+            containerElementHeight = container.element.getBoundingClientRect().height;
+        },
         render(light) {
-            const containerElementWidth = container.element.getBoundingClientRect().width,
-                containerElementHeight = container.element.getBoundingClientRect().height,
-                distance = light.position.y,
+            const distance = -light.position.z,
                 circle = light.circle,
-                minW = containerElementWidth * (1 - renderParams.perspective),
-                maxW = containerElementWidth,
-                minH = containerElementHeight * (1 - renderParams.perspective),
-                maxH = containerElementHeight,
+                xOffset = containerElementWidth/2,
+                xFactor = containerElementWidth / container.width,
+                yFactor = containerElementHeight / container.height,
+                yOffset = containerElementHeight/2,
                 distanceFactor = 1 - (container.depth - distance) / container.depth,  // 0 - close, 1 - far
-                xOffset = (maxW - minW) * distanceFactor / 2,
-                xFactor = (maxW - xOffset * 2) / maxW,
-                yOffset = (maxH - minH) * distanceFactor / 2,
-                yFactor = (maxH - yOffset * 2) / maxH;
+                coords = transformCoords(light.position);
 
             circle.radius = renderParams.radius;
-            circle.x = xOffset + xFactor * containerElementWidth * light.position.x / container.width;
-            circle.y = yOffset + yFactor * containerElementHeight * (1-light.position.z / container.height);
-            circle.zIndex = Math.round(10 + (container.depth - light.position.y));
+            circle.x = coords.x * xFactor + xOffset;
+            circle.y = coords.y * yFactor + yOffset;
+            circle.zIndex = Math.round(10 + (container.depth + light.position.z));
 
             circle.borderColor = {
                 h : light.hue,
                 s : 100 - renderParams.colourFade * distanceFactor,
-                l : 50 - renderParams.fade * distanceFactor / renderParams.edgeBrightness
+                l : 50 - renderParams.fade * distanceFactor * renderParams.edgeBrightness
             };
             circle.backgroundColor = {
                 h : light.hue,
                 s : 100 - renderParams.colourFade * distanceFactor,
                 l : 50 - renderParams.fade * distanceFactor
             };
-            circle.blur = renderParams.blur * distanceFactor;
+            circle.blur = renderParams.blur * Math.abs((distance - renderParams.focalDistance) / container.depth);
             circle.hidden = light.hidden;
 
-            if (light.finished) {
-                circle.alphaFactor *= 0.98;
+            if (light.fadeOut) {
+                circle.alpha *= 0.98;
+            } else {
+                circle.alpha = 1-distanceFactor;
             }
-
+            circle.applyStyles();
         }
     };
+
+    renderer.checkContainerSize();
+
+    setInterval(renderer.checkContainerSize, 1000);
+
+    return renderer;
 }
 
 function buildEnvironment(container = document.body, width = 100, height = 100, depth = 100) {
@@ -184,15 +220,14 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
         light.position.y += light.speed.y * millisSinceLast / 1000;
         light.position.z += light.speed.z * millisSinceLast / 1000;
 
-        light.finished = light.finished ||
-            (light.position.x < 0 && light.speed.x < 0) ||
-            (light.position.x > width && light.speed.x > 0) ||
-            (light.position.y < 0 && light.speed.y < 0) ||
-            (light.position.y > depth && light.speed.y > 0) ||
-            (light.position.z < 0 && light.speed.z < 0) ||
-            (light.position.z > height && light.speed.z > 0);
+        light.fadeOut = light.fadeOut ||
+            (light.position.x < -width/2 && light.speed.x < 0) ||
+            (light.position.x >  width/2 && light.speed.x > 0) ||
+            (light.position.y < -width/2 && light.speed.y < 0) ||
+            (light.position.y >  width/2 && light.speed.y > 0) ||
+            (light.position.z >= 0);
 
-        light.hidden = light.flicker(light.position.x, light.position.y, light.position.z, now);
+        light.hidden = light.position.z >= 0 || light.flicker(light.position.x, light.position.y, light.position.z, now);
 
         light.lastUpdate = Date.now();
     }
@@ -203,7 +238,7 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
         lights.forEach((light, index) => {
             updateLight(light, now);
 
-            if (light.finished && !light.timer) {
+            if (light.fadeOut && !light.timer) {
                 const FADEOUT_TIME_SECS = 3;
                 light.timer = setTimeout(() => {
                     light.circle.remove();
@@ -268,6 +303,8 @@ function setupControls(params) {
     setupControl('colourFade');
     setupControl('fade');
     setupControl('edgeBrightness');
+    setupControl('focalDistance');
+    setupControl('vanishingPoint');
 }
 
 function setupLightTimer() {
@@ -275,13 +312,13 @@ function setupLightTimer() {
         const
             hue = Math.round(pickRandomRange(0, 360)),
             position = {
-                x: 0,
-                y: 100,
-                z: 100
+                x: -50,
+                y: pickRandomRange(-50, 50),
+                z: pickRandomRange(0, -50)
             },
             speed = {
-                x: 0,
-                y: -3,
+                x: pickRandomRange(5,20),
+                y: 0,
                 z: 0
             },
             acceleration = {
@@ -291,10 +328,10 @@ function setupLightTimer() {
             };
 
         function flicker(x, y, z, t) {
-            return y < 20 && Math.floor(x / 4) % 4 === 1;
+            return Math.floor(x*20) % 100 === 1;
         }
 
-        env.addLight(50, position, speed, acceleration, flicker);
+        env.addLight(pickRandomRange(150,220), position, speed, acceleration, flicker);
         setTimeout(newLight, 1000 / renderParams.rate);
     };
     newLight();
