@@ -23,8 +23,7 @@ function buildCircle(container) {
 
     container.appendChild(div);
 
-    const borderColorAlpha = 1, backgroundColorAlpha = 0.7;
-    let x, y, hidden, zIndex, radius, borderWidth, borderColor, backgroundColor, blur, alpha;
+    let x, y, hidden, zIndex, radius, borderWidth, borderColor, backgroundColor, blur, alpha, borderAlpha;
 
     return {
         get x() {
@@ -97,6 +96,13 @@ function buildCircle(container) {
             alpha = value;
         },
 
+        get borderAlpha() {
+            return borderAlpha;
+        },
+        set borderAlpha(value) {
+            borderAlpha = value;
+        },
+
         applyStyles() {
             Object.assign(div.style, {
                 left : `${x-radius}px`,
@@ -107,29 +113,28 @@ function buildCircle(container) {
                 height : `${radius*2}px`,
                 width : `${radius*2}px`,
                 borderWidth : `${borderWidth}px`,
-                borderColor : `hsla(${borderColor.h},${borderColor.s}%,${borderColor.l}%, ${borderColorAlpha * alpha})`,
-                backgroundColor : `hsla(${backgroundColor.h},${backgroundColor.s}%,${backgroundColor.l}%, ${backgroundColorAlpha * alpha})`,
+                borderColor : `hsla(${borderColor.h},${borderColor.s}%,${borderColor.l}%, ${borderAlpha})`,
+                backgroundColor : `hsla(${backgroundColor.h},${backgroundColor.s}%,${backgroundColor.l}%, ${alpha})`,
                 filter : `blur(${Math.abs(blur)}px)`,
             });
         },
 
         remove() {
             container.removeChild(div);
-            console.log('===== finished')
         }
     };
 }
 
 const renderParams = {
     radius : 50,
-    rate : 0.3,
-    perspective: 0.5,
-    blur : 5,
-    colourFade : 80,
-    fade: 10,
-    edgeBrightness : 2,
-    focalDistance : 50,
-    vanishingPoint : 100
+    rate : 1,
+    perspective: 0.1,
+    blur : 0.75,
+    colourFade : 0.8,
+    fade: 0.1,
+    edgeBrightness : 0.25,
+    focalDistance : 0.3,
+    alphaFactor : 0.8
 };
 
 function buildRenderer(container) {
@@ -167,30 +172,36 @@ function buildRenderer(container) {
                 yFactor = containerElementHeight / container.height,
                 yOffset = containerElementHeight/2,
                 distanceFactor = 1 - (container.depth - distance) / container.depth,  // 0 - close, 1 - far
-                coords = transformCoords(light.position);
+                coords = transformCoords(light.position),
+                MAX_BLUR = 20,
+                BASE_Z_INDEX = 10,
+                BACKGROUND_ALPHA_DECAY = 0.98,
+                BORDER_ALPHA_DECAY = 0.95;
 
             circle.radius = renderParams.radius;
             circle.x = coords.x * xFactor + xOffset;
             circle.y = coords.y * yFactor + yOffset;
-            circle.zIndex = Math.round(10 + (container.depth + light.position.z));
+            circle.zIndex = Math.round(BASE_Z_INDEX + (container.depth + light.position.z));
 
             circle.borderColor = {
-                h : light.hue,
-                s : 100 - renderParams.colourFade * distanceFactor,
-                l : 50 - renderParams.fade * distanceFactor * renderParams.edgeBrightness
+                h : light.colour.hue,
+                s : 100 * (1 - renderParams.colourFade * distanceFactor),
+                l : light.colour.lightness * (1 - renderParams.fade * distanceFactor )
             };
             circle.backgroundColor = {
-                h : light.hue,
-                s : 100 - renderParams.colourFade * distanceFactor,
-                l : 50 - renderParams.fade * distanceFactor
+                h : light.colour.hue,
+                s : 100 * (1 - renderParams.colourFade * distanceFactor),
+                l : light.colour.lightness * (1 - renderParams.fade * distanceFactor)
             };
-            circle.blur = renderParams.blur * Math.abs((distance - renderParams.focalDistance) / container.depth);
+            circle.blur = MAX_BLUR * renderParams.blur * Math.abs((distance - container.depth * renderParams.focalDistance) / container.depth);
             circle.hidden = light.hidden;
 
             if (light.fadeOut) {
-                circle.alpha *= 0.98;
+                circle.alpha *= BACKGROUND_ALPHA_DECAY;
+                circle.borderAlpha *= BORDER_ALPHA_DECAY;
             } else {
-                circle.alpha = 1-distanceFactor;
+                circle.alpha = (1 - distanceFactor) * renderParams.alphaFactor;
+                circle.borderAlpha = renderParams.edgeBrightness * renderParams.alphaFactor;
             }
             circle.applyStyles();
         }
@@ -261,12 +272,16 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
             cancelAnimationFrame(frameRequestId);
         },
 
-        addLight(hue, position, speed, acceleration, flicker) {
+        addLight(colour, position, speed, acceleration, flicker) {
             const circle = buildCircle(container);
             circle.borderWidth = 2;
 
             const light = {
-                hue, position, speed, acceleration, flicker,
+                colour: {
+                    hue: colour.h,
+                    lightness: colour.l
+                },
+                position, speed, acceleration, flicker,
                 lastUpdate : Date.now(),
                 circle
             };
@@ -304,10 +319,11 @@ function setupControls(params) {
     setupControl('fade');
     setupControl('edgeBrightness');
     setupControl('focalDistance');
-    setupControl('vanishingPoint');
+    setupControl('alphaFactor');
 }
 
 function setupLightTimer() {
+    let nextHue = 0;
     function newLight() {
         const
             hue = Math.round(pickRandomRange(0, 360)),
@@ -331,7 +347,8 @@ function setupLightTimer() {
             return Math.floor(x*20) % 100 === 1;
         }
 
-        env.addLight(pickRandomRange(150,220), position, speed, acceleration, flicker);
+        nextHue = (nextHue + 5) % 360;
+        env.addLight({h:nextHue,l:pickRandomRange(50,100)}, position, speed, acceleration, flicker);
         setTimeout(newLight, 1000 / renderParams.rate);
     };
     newLight();
