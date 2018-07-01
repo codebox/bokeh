@@ -1,21 +1,3 @@
-const colourHues = {
-    red: 0,
-    green: 128,
-    blue: 230,
-    yellow: 60,
-    pink: 300,
-    purple: 280,
-    orange: 30
-};
-
-function pickRandom(...items) {
-    return items[Math.floor(Math.random() * items.length)]
-}
-
-function pickRandomRange(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
 function buildCircle(container) {
     const div = document.createElement('div');
     div.style.position = 'absolute';
@@ -272,6 +254,16 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
             cancelAnimationFrame(frameRequestId);
         },
 
+        clearLights() {
+            lights.forEach(light => {
+                light.circle.remove();
+                if (light.timer) {
+                    clearTimeout(light.timer);
+                }
+            });
+            lights.length = 0;
+        },
+
         addLight(colour, position, speed, acceleration, flicker) {
             const circle = buildCircle(container);
             circle.borderWidth = 2;
@@ -286,6 +278,7 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
                 circle
             };
             lights.push(light);
+
             return light;
         },
 
@@ -298,9 +291,11 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
 
 const bokehEl = document.querySelector('#bokeh');
 const env = buildEnvironment(bokehEl);
+let currentTimer;
+
 env.start();
 
-function setupControls(params) {
+function setupControls() {
     function setupControl(name) {
         const slider = document.querySelector(`#${name}`),
             display = document.querySelector(`#${name}Value`);
@@ -322,36 +317,34 @@ function setupControls(params) {
     setupControl('alphaFactor');
 }
 
-function setupLightTimer() {
-    let nextHue = 0;
-    function newLight() {
-        const
-            hue = Math.round(pickRandomRange(0, 360)),
-            position = {
-                x: -50,
-                y: pickRandomRange(-50, 50),
-                z: pickRandomRange(0, -50)
-            },
-            speed = {
-                x: pickRandomRange(5,20),
-                y: 0,
-                z: 0
-            },
-            acceleration = {
-                x: 0,
-                y: 0,
-                z: 0
-            };
+function setupLightTimer(preset) {
+    if (currentTimer) {
+        currentTimer.stop();
+    }
+    env.clearLights();
 
-        function flicker(x, y, z, t) {
-            return Math.floor(x*20) % 100 === 1;
+    preset.setParams(renderParams);
+    setupControls();
+
+    const newLight = preset.build().bind(preset);
+
+    let stop = false;
+    function makeNewLight(){
+        if (stop) {
+            return;
         }
+        newLight(env);
 
-        nextHue = (nextHue + 5) % 360;
-        env.addLight({h:nextHue,l:pickRandomRange(50,100)}, position, speed, acceleration, flicker);
-        setTimeout(newLight, 1000 / renderParams.rate);
-    };
-    newLight();
+        setTimeout(() => {
+            makeNewLight();
+        }, 1000 / renderParams.rate);
+    }
+    makeNewLight();
+    currentTimer = {
+        stop() {
+            stop = true;
+        }
+    }
 }
 
 function setupFullScreen() {
@@ -363,6 +356,21 @@ function setupFullScreen() {
     }
 }
 
-setupControls(renderParams);
+function setupPresets(){
+    const ul = document.querySelector('#presets ul');
+    Object.keys(presets).forEach(name => {
+        const li = document.createElement('li'),
+            a = document.createElement('a');
+        li.appendChild(a);
+        a.innerHTML = name;
+        a.addEventListener('click', () => {
+            setupLightTimer(presets[name]);
+        });
+        ul.appendChild(li)
+    });
+}
+
+setupControls();
 setupFullScreen();
-setupLightTimer();
+setupPresets();
+setupLightTimer(presets.Snow);
