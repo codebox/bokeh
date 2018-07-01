@@ -5,7 +5,7 @@ function buildCircle(container) {
 
     container.appendChild(div);
 
-    let x, y, hidden, zIndex, radius, borderWidth, borderColor, backgroundColor, blur, alpha, borderAlpha;
+    let x, y, hidden, zIndex, radius, borderWidth, borderColor, backgroundColor, blur, alpha, borderAlpha, lastStyleValues = {};
 
     return {
         get x() {
@@ -86,7 +86,7 @@ function buildCircle(container) {
         },
 
         applyStyles() {
-            Object.assign(div.style, {
+            const newStyleValues = {
                 left : `${x-radius}px`,
                 top : `${y-radius}px`,
                 zIndex : `${zIndex}`,
@@ -98,7 +98,15 @@ function buildCircle(container) {
                 borderColor : `hsla(${borderColor.h},${borderColor.s}%,${borderColor.l}%, ${borderAlpha})`,
                 backgroundColor : `hsla(${backgroundColor.h},${backgroundColor.s}%,${backgroundColor.l}%, ${alpha})`,
                 filter : `blur(${Math.abs(blur)}px)`,
+            }, changedStyleValues = {};
+
+            Object.keys(newStyleValues).forEach(key => {
+                if (lastStyleValues[key] !== newStyleValues[key]){
+                    changedStyleValues[key] = newStyleValues[key];
+                }
             });
+            lastStyleValues = newStyleValues;
+            Object.assign(div.style, changedStyleValues);
         },
 
         remove() {
