@@ -229,7 +229,6 @@ function buildEnvironment(container = document.body, width = 100, height = 100, 
             (light.position.z > 0 && light.speed.z > 0) ||
             (light.position.z < -depth && light.speed.z < 0);
 
-        console.log(light.fadeOut, light.position.z)
         light.hidden = light.position.z >= 0 || light.flicker(light.position.x, light.position.y, light.position.z, now);
 
         light.lastUpdate = Date.now();
